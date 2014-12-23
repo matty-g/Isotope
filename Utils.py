@@ -1,5 +1,6 @@
 import platform
 import subprocess
+import re
 import nuke
 
 
@@ -57,3 +58,34 @@ def displayBBoxInfoForNode(node):
     takes a node and returns a display string containing its bbox
     """
     return "%s: %s" % (node.name(), BBoxDimensionString(node.bbox()))
+
+def lutList():
+    """
+    returns a list of the LUTS in the Nuke session
+    """
+    sessionLuts = nuke.Root()["luts"]
+    luts = re.findall('[a-zA-Z0-9.*]+', sessionLuts.toScript())
+    return luts
+
+def changeColorPanel():
+    """
+    displays all current read nodes and their existing colorspace
+    select a colorspace to change to, and then select the read nodes
+    you wish to change, and click OK
+    """
+    panel = nuke.Panel('Change Colorspace')
+
+    #add pulldown for choice of colorspace
+    luts = ' '.join(lutList())
+    spaces = panel.addEnumerationPulldown("new colorspace", luts)
+
+    for each in nuke.allNodes("Read"):
+        readFileName = each["file"].value().split('/').pop().split('.').pop(0)
+        panel.addBooleanCheckBox("%s :[%s]" % (readFileName, each["colorspace"].value()), False)
+
+    ret = panel.show()
+
+    for each in nuke.allNodes("Read"):
+        readFileName = each["file"].value().split('/').pop().split('.').pop(0)
+        if panel.value("%s :[%s]" % (readFileName, each["colorspace"].value())):
+            each["colorspace"].setValue(panel.value("new colorspace"))
