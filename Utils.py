@@ -59,6 +59,17 @@ def displayBBoxInfoForNode(node):
     """
     return "%s: %s" % (node.name(), BBoxDimensionString(node.bbox()))
 
+def makeLogC():
+    """
+    changes to colourspace for the selectedNodes to AlexaV3LogC
+    """
+    counter = 0
+    for each in nuke.selectedNodes():
+        each["colorspace"].setValue("AlexaV3LogC")
+        counter += 1
+
+    print "## changed colourspace for %d nodes" % counter
+
 def lutList():
     """
     returns a list of the LUTS in the Nuke session
@@ -89,3 +100,102 @@ def changeColorPanel():
         readFileName = each["file"].value().split('/').pop().split('.').pop(0)
         if panel.value("%s :[%s]" % (readFileName, each["colorspace"].value())):
             each["colorspace"].setValue(panel.value("new colorspace"))
+
+
+def isNodeAGizmo(aNode):
+    if type(aNode) == 'Gizmo':
+        return True
+    else:
+        return False
+
+def replaceGizmos():
+    """
+    duplicates all gizmos in a script to a group node
+    """
+    # parse through script
+
+    #make a list of all gizmos
+    scriptgizmos = []
+    print "#debug: number of gizmos in script is: %d" % len(scriptgizmos)
+    for each in nuke.allNodes():
+        print "#debug: testing node %s and type is: %s" % (each.name(), type(each))
+        if type(each) is nuke.Gizmo:
+
+            print "%s is a gizmo." % each.name()
+            scriptgizmos.append(each)
+
+    # now we have the gizmos - go through and replace them
+
+    #TODO: implement a try-catch block here
+    for gizmo in scriptgizmos:
+        convertToGroup(gizmo)
+
+        #TODO: need to delete the original gizmos here
+        nuke.delete(gizmo) # note - can be fixed with an undo
+
+def convertToGroup(gizmo):
+    # copy gizmo to group
+    newGrpNode = gizmo.makeGroup()
+
+    # give the group a name to identify it's origins
+    newGrpName = gizmo.name() + "_grp"
+    newGrpNode.setName(newGrpName)
+
+    # set the new groups position to an offset of it's original gizmo pos
+    newGrpNode.setXpos(gizmo.xpos())
+    newGrpNode.setYpos(gizmo.ypos())
+
+
+
+    #get number of inputs
+    numInputs = gizmo.inputs()
+    idx = 0
+
+    #iterate through inputs and assign new connections
+    while idx < numInputs:
+        newGrpNode.setInput(idx, gizmo.input(idx))
+        idx += 1
+
+    # do the same for outputs
+
+    outputs = gizmo.dependent()
+
+    print "dependencies for %s are: " % gizmo.name()
+    print outputs
+
+    #iterate through outputs
+
+    for connNode in outputs:
+
+        #find the input that's connected to the original gizmo
+
+        connectedIdx = whichInput(gizmo, connNode)
+        print "#debug: connected index is %d" % connectedIdx
+        #connect it to the new Group node
+        connNode.setInput(connectedIdx, newGrpNode)
+
+    #get input(s) and output for gizmo and assign to new node
+
+
+
+
+    #TODO: set return type to be a BOOL
+
+
+
+def whichInput(input, output):
+    """
+    finds the input index for the ouput node connected to input
+    """
+    print "#debug: whichInput called to check input: %s and output: %s" % (input.name(), output.name())
+    numInputs = output.inputs()
+    idx = 0
+    while idx < numInputs:
+        if output.input(idx).name() == input.name():
+            return idx
+        else:
+            idx += 1
+
+
+#TODO: write func to display a list of gizmos used in script
+
