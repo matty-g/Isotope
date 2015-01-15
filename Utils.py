@@ -3,6 +3,17 @@ import subprocess
 import re
 import nuke
 
+# DEBUGGING FLAGS
+
+debugFlag = None  # turns debug statements off by default
+
+def debugLog(message):
+    """
+    small function to format and display a debug message to stdout
+    only if debugFlag is not set to None
+    """
+    if debugFlag != None:
+        print "#debug: " + str(message)
 
 def openExplorerWithPath(path):
     cmd = "explorer %s, shell=True" % path
@@ -101,8 +112,10 @@ def changeColorPanel():
         if panel.value("%s :[%s]" % (readFileName, each["colorspace"].value())):
             each["colorspace"].setValue(panel.value("new colorspace"))
 
-
 def isNodeAGizmo(aNode):
+    """
+    helper method for replaceGizmos()
+    """
     if type(aNode) == 'Gizmo':
         return True
     else:
@@ -110,18 +123,24 @@ def isNodeAGizmo(aNode):
 
 def replaceGizmos():
     """
-    duplicates all gizmos in a script to a group node
+    <usage>: duplicates all gizmos in a script to a group node
+    avoids errors with network processing (ie. rendering on a farm)
+    where the gizmo is stored locally (ie. $HOME/.nuke)
+    preserves existing knob values
     """
     # parse through script
 
     #make a list of all gizmos
     scriptgizmos = []
-    print "#debug: number of gizmos in script is: %d" % len(scriptgizmos)
+    debugLog("number of gizmos in script is: %d" % len(scriptgizmos))
+    # print "#debug: number of gizmos in script is: %d" % len(scriptgizmos)
+
+    #find the gizmos
     for each in nuke.allNodes():
-        print "#debug: testing node %s and type is: %s" % (each.name(), type(each))
+        debugLog("testing node %s and type is: %s" % (each.name(), type(each)))
         if type(each) is nuke.Gizmo:
 
-            print "%s is a gizmo." % each.name()
+            debugLog("%s is a gizmo." % each.name())
             scriptgizmos.append(each)
 
     # now we have the gizmos - go through and replace them
@@ -134,6 +153,11 @@ def replaceGizmos():
         nuke.delete(gizmo) # note - can be fixed with an undo
 
 def convertToGroup(gizmo):
+    """
+    <usage>: function takes a gizmo Type and performs copy to group
+    while preserving all knob values and input(s)/output(s)
+    """
+
     # copy gizmo to group
     newGrpNode = gizmo.makeGroup()
 
@@ -144,8 +168,6 @@ def convertToGroup(gizmo):
     # set the new groups position to an offset of it's original gizmo pos
     newGrpNode.setXpos(gizmo.xpos())
     newGrpNode.setYpos(gizmo.ypos())
-
-
 
     #get number of inputs
     numInputs = gizmo.inputs()
@@ -160,8 +182,8 @@ def convertToGroup(gizmo):
 
     outputs = gizmo.dependent()
 
-    print "dependencies for %s are: " % gizmo.name()
-    print outputs
+    debugLog("dependencies for %s are: " % gizmo.name())
+    debugLog(outputs)
 
     #iterate through outputs
 
@@ -170,32 +192,33 @@ def convertToGroup(gizmo):
         #find the input that's connected to the original gizmo
 
         connectedIdx = whichInput(gizmo, connNode)
-        print "#debug: connected index is %d" % connectedIdx
+        debugLog("connected index is %d" % connectedIdx)
         #connect it to the new Group node
         connNode.setInput(connectedIdx, newGrpNode)
 
     #get input(s) and output for gizmo and assign to new node
 
-
-
-
     #TODO: set return type to be a BOOL
-
-
 
 def whichInput(input, output):
     """
-    finds the input index for the ouput node connected to input
+    helper method for replaceGizmos()
+    finds the input index to which the upstream output is connected
+    input - upstream node for which we are tracing
+    output - the node which is dependent on input
     """
-    print "#debug: whichInput called to check input: %s and output: %s" % (input.name(), output.name())
+    debugLog("whichInput called to check input: %s and output: %s" % (input.name(), output.name()))
     numInputs = output.inputs()
     idx = 0
     while idx < numInputs:
-        if output.input(idx).name() == input.name():
-            return idx
+        # first need to check that name is not None otherwise it will crash
+        # this occurs where unconnected inputs > 1 exist ie. a Viewer node
+        if output.input(idx) is not None:
+            if output.input(idx).name() == input.name():
+                return idx
         else:
             idx += 1
 
 
-#TODO: write func to display a list of gizmos used in script
+    #TODO: write func to display a list of gizmos used in script
 
